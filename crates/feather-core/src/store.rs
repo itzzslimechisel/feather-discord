@@ -9,7 +9,7 @@ use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-const SCHEMA_VERSION: &str = "1";
+const SCHEMA_VERSION: &str = "2";
 
 pub struct Store {
     conn: Connection,
@@ -104,8 +104,8 @@ impl Store {
             "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS guilds(id INTEGER PRIMARY KEY, json TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS dms(id INTEGER PRIMARY KEY, json TEXT NOT NULL);
-             CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, json TEXT NOT NULL);
-             CREATE INDEX IF NOT EXISTS messages_channel ON messages(channel_id, id);
+             CREATE TABLE IF NOT EXISTS messages(channel_id INTEGER NOT NULL, id INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(channel_id, id)) WITHOUT ROWID;
+             CREATE INDEX IF NOT EXISTS messages_id ON messages(id);
              CREATE TABLE IF NOT EXISTS read_state(channel_id INTEGER PRIMARY KEY, last_read INTEGER NOT NULL, mentions INTEGER NOT NULL DEFAULT 0);
              CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(content, content='', contentless_delete=1, tokenize='unicode61');",
         )?;
@@ -176,8 +176,14 @@ impl Store {
             let mut ins = tx.prepare_cached("INSERT OR REPLACE INTO messages(id,channel_id,json) VALUES(?,?,?)")?;
             let mut del = tx.prepare_cached("DELETE FROM fts WHERE rowid=?")?;
             let mut fts = tx.prepare_cached("INSERT INTO fts(rowid,content) VALUES(?,?)")?;
+            let mut cur = tx.prepare_cached("SELECT json FROM messages WHERE id=?")?;
             for m in msgs {
                 let j = serde_json::to_string(m).expect("message serialises");
+                // Re-fetched history is mostly unchanged; skipping identical rows avoids rewriting
+                // table, index and search pages (the dominant disk write when switching channels).
+                if cur.query_row([i(m.id)], |r| r.get::<_, String>(0)).optional()?.is_some_and(|old| old == j) {
+                    continue;
+                }
                 ins.execute(params![i(m.id), i(m.channel_id), j])?;
                 del.execute([i(m.id)])?;
                 if !m.content.is_empty() {

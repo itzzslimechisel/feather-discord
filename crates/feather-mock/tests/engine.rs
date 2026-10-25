@@ -3,7 +3,7 @@
 use feather_core::config::Endpoints;
 use feather_core::engine::{self, Command, EngineConfig, EngineHandle, Event, HistoryKind, Session};
 use feather_core::gateway::ConnState;
-use feather_core::model::Id;
+use feather_core::model::{GuildInfo, Id};
 use std::process::{Child, Command as Proc, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -49,7 +49,12 @@ fn control(port: u16, action: &str) {
     let _ = s.read_to_string(&mut buf);
 }
 
+/// Tests run in parallel threads but the endpoint override is process-global environment, so
+/// setting it and reading it back must be one atomic step.
+static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn start(port: u16, dir: &std::path::Path) -> EngineHandle {
+    let _env = ENV.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var("FEATHER_API_BASE", format!("http://127.0.0.1:{port}"));
     std::env::set_var("FEATHER_NO_KEYRING", "1");
     std::env::set_var("FEATHER_NO_NOTIFY", "1");
@@ -69,23 +74,35 @@ fn start(port: u16, dir: &std::path::Path) -> EngineHandle {
 
 fn wait<T>(h: &EngineHandle, what: &str, mut f: impl FnMut(&Event) -> Option<T>) -> T {
     let deadline = Instant::now() + Duration::from_secs(15);
+    let mut seen: Vec<String> = Vec::new();
     loop {
         let left = deadline.saturating_duration_since(Instant::now());
         match h.rx.recv_timeout(left) {
             Ok(e) => {
+                seen.push(format!("{e:?}").chars().take(90).collect());
                 if let Some(v) = f(&e) {
                     return v;
                 }
             }
-            Err(_) => panic!("timed out waiting for {what}"),
+            Err(_) => panic!("timed out waiting for {what}; events seen meanwhile: {seen:#?}"),
         }
     }
 }
 
-fn login(h: &EngineHandle) {
+/// Logs in and returns the first guild seen on the way (guild events may precede "connected").
+fn login(h: &EngineHandle) -> Option<GuildInfo> {
     h.send(Command::Login { token: feather_core::creds::normalise(TOKEN).unwrap(), remember: false });
-    wait(h, "logged in", |e| matches!(e, Event::Session(Session::LoggedIn { .. })).then_some(()));
-    wait(h, "connected", |e| matches!(e, Event::Conn(ConnState::Connected)).then_some(()));
+    // The engine may report the connection before or after the login result.
+    let (mut logged_in, mut connected, mut guild) = (false, false, None);
+    wait(h, "logged in and connected", |e| {
+        logged_in |= matches!(e, Event::Session(Session::LoggedIn { .. }));
+        connected |= matches!(e, Event::Conn(ConnState::Connected));
+        if let Event::Guild(g) = e {
+            guild.get_or_insert_with(|| g.clone());
+        }
+        (logged_in && connected).then_some(())
+    });
+    guild
 }
 
 const GENERAL: Id = Id(2_000_001);
@@ -96,10 +113,13 @@ fn full_session_against_mock() {
     let dir = tempfile::tempdir().unwrap();
     let h = start(m.port, dir.path());
     wait(&h, "snapshot", |e| matches!(e, Event::Snapshot { .. }).then_some(()));
-    login(&h);
+    let early = login(&h);
 
     // Guilds arrive with permission filtering applied (the "secret" channel is hidden).
-    let g = wait(&h, "guild", |e| if let Event::Guild(g) = e { Some(g.clone()) } else { None });
+    let g = match early {
+        Some(g) => g,
+        None => wait(&h, "guild", |e| if let Event::Guild(g) = e { Some(g.clone()) } else { None }),
+    };
     assert!(g.channels.iter().any(|c| c.name.as_deref() == Some("general")));
     assert!(!g.channels.iter().any(|c| c.name.as_deref() == Some("secret")));
 

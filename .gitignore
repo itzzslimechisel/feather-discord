@@ -17,3 +17,5 @@
 *.swp
 .DS_Store
 Thumbs.db
+__pycache__/
+bench/out/

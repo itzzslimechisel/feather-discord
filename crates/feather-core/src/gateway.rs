@@ -537,6 +537,55 @@ mod tests {
         assert_eq!(z.push(&frames[2]).unwrap().unwrap(), msgs[2].as_bytes());
     }
 
+    /// Many frames of awkward sizes through one shared context, as a real session produces.
+    #[test]
+    fn zlib_stream_many_sizes_round_trip() {
+        let mut c = Compress::new(Compression::fast(), true);
+        let mut z = ZlibStream::default();
+        let mut x: u64 = 0x9e3779b97f4a7c15;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for i in 0..3000 {
+            let len = 1 + (next() % if i % 50 == 0 { 40_000 } else { 700 }) as usize;
+            let words = ["alpha", "beta", "gamma", "delta", "feather", "chat", "\\u00e9", "12345"];
+            let mut body = String::new();
+            while body.len() < len {
+                body.push_str(words[(next() % 8) as usize]);
+                body.push(' ');
+            }
+            let msg = format!("{{\"op\":0,\"s\":{i},\"d\":\"{body}\"}}");
+            let mut out = Vec::with_capacity(msg.len() / 2 + 64);
+            let start = c.total_in();
+            loop {
+                out.reserve(256);
+                let done = (c.total_in() - start) as usize;
+                c.compress_vec(&msg.as_bytes()[done..], &mut out, FlushCompress::Sync).unwrap();
+                if (c.total_in() - start) as usize >= msg.len() && out.len() < out.capacity() {
+                    break;
+                }
+            }
+            // Deliver in one piece or split at a random point, like websocket fragmentation.
+            let got = if next() % 3 == 0 && out.len() > 8 {
+                let at = 1 + (next() as usize % (out.len() - 2));
+                let (a, b) = out.split_at(at);
+                // A fragment that happens to end in the suffix would be a protocol ambiguity; skip it.
+                if a.ends_with(&[0, 0, 0xff, 0xff]) {
+                    z.push(&out).unwrap().unwrap().to_vec()
+                } else {
+                    assert!(z.push(a).is_none());
+                    z.push(b).unwrap().unwrap().to_vec()
+                }
+            } else {
+                z.push(&out).unwrap().unwrap().to_vec()
+            };
+            assert_eq!(got, msg.as_bytes(), "frame {i}");
+        }
+    }
+
     #[test]
     fn zlib_garbage_is_an_error() {
         let mut z = ZlibStream::default();

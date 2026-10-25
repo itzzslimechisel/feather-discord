@@ -499,23 +499,16 @@ impl Out {
             None => Ws::Text(text.into()),
             Some(c) => {
                 let mut out = Vec::with_capacity(text.len() / 2 + 64);
+                let start = c.total_in();
+                // A sync flush is complete only when all input is consumed and the output buffer
+                // had room to spare; otherwise the 00 00 ff ff marker may be missing.
                 loop {
-                    let before = c.total_in();
-                    let consumed_so_far = (c.total_in() - before) as usize;
-                    let _ = consumed_so_far;
-                    c.compress_vec(text.as_bytes(), &mut out, FlushCompress::Sync).unwrap();
-                    if out.len() < out.capacity() {
+                    out.reserve(256);
+                    let done = (c.total_in() - start) as usize;
+                    c.compress_vec(&text.as_bytes()[done..], &mut out, FlushCompress::Sync).unwrap();
+                    if (c.total_in() - start) as usize >= text.len() && out.len() < out.capacity() {
                         break;
                     }
-                    out.reserve(out.capacity());
-                    // Data was not fully consumed: compress the remainder.
-                    let done = c.total_in() - before;
-                    if done as usize >= text.len() {
-                        break;
-                    }
-                    let rest = &text.as_bytes()[done as usize..];
-                    c.compress_vec(rest, &mut out, FlushCompress::Sync).unwrap();
-                    break;
                 }
                 Ws::Binary(out.into())
             }
@@ -574,18 +567,22 @@ async fn session(s: Arc<Mock>, socket: WebSocket, compress: bool) {
                         s.count("gateway resume");
                         let sid = v["d"]["session_id"].as_str().unwrap_or("").to_string();
                         let from = v["d"]["seq"].as_u64().unwrap_or(0);
-                        let buf = s.sessions.lock().unwrap().get(&sid).cloned();
-                        match buf {
-                            Some(sb) => {
+                        // Snapshot the buffer and reserve the RESUMED sequence under one lock, so an event
+                        // emitted meanwhile gets a higher sequence and is dispatched afterwards.
+                        let resumed = {
+                            let mut all = s.sessions.lock().unwrap();
+                            all.get_mut(&sid).map(|sb| {
+                                sb.seq += 1;
+                                (sb.buf.clone(), sb.seq)
+                            })
+                        };
+                        match resumed {
+                            Some((buf, rs)) => {
                                 session_id = Some(sid.clone());
-                                seq = from;
-                                for (sq, ev) in sb.buf.iter().filter(|(sq, _)| *sq > from) {
-                                    seq = *sq;
+                                for (sq, ev) in buf.iter().filter(|(sq, _)| *sq > from) {
                                     let _ = tx.send(out.frame(&json!({ "op": 0, "t": ev.0, "s": sq, "d": ev.1 }))).await;
                                 }
-                                seq = seq.max(sb.seq);
-                                let rs = s.next_seq(&sid);
-                                seq = seq.max(rs);
+                                seq = rs;
                                 let _ = tx.send(out.frame(&json!({ "op": 0, "t": "RESUMED", "s": rs, "d": {} }))).await;
                             }
                             None => {

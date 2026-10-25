@@ -26,6 +26,14 @@ jobs:
         run: cargo test --workspace
       - name: Build release binary
         run: cargo build --release -p feather-app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: feather-${{ runner.os }}
+          path: |
+            target/release/feather
+            target/release/feather.exe
+          if-no-files-found: error
+          retention-days: 14
 
   audit:
     runs-on: ubuntu-latest
