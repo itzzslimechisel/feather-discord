@@ -1,0 +1,12 @@
+{
+  "cold":      {"median.ui_first_frame_ms": 250, "median.ui_interactive_ms": 300, "median.rss_mib": 160, "median.threads": 20},
+  "warm":      {"median.ui_first_frame_ms": 250, "median.ui_cached_content_ms": 400, "median.rss_mib": 160},
+  "idle":      {"cpu_pct": 1.0, "ctx_switch_per_s": 20, "rss_mib": 160, "disk_write_kib_per_s": 5},
+  "active":    {"cpu_pct": 15, "rss_mib": 170, "frames.frame_cpu_ms_p95": 5},
+  "large":     {"rss_mib": 190, "frames.frame_cpu_ms_p95": 5, "frames.frame_cpu_ms_max": 40},
+  "servers":   {"rss_mib": 200, "frames.frame_cpu_ms_p95": 8, "disk_write_kib_per_s": 600},
+  "images":    {"rss_mib": 300, "frames.frame_cpu_ms_p95": 5},
+  "switch":    {"rss_mib": 180, "frames.frame_cpu_ms_p95": 8},
+  "long":      {"pss_growth_mib_per_hour": 5, "frames.frame_cpu_ms_p95": 8},
+  "reconnect": {"recovery_rate": 1.0}
+}
