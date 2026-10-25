@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+          - os: windows-latest
+            name: windows-x86_64
+          - os: macos-latest
+            name: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-x11-0 libdbus-1-dev pkg-config libgl1 libwayland-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked -p feather-app
+      - name: Package
+        shell: bash
+        run: |
+          mkdir dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/release/feather.exe dist/
+            cp README.md LICENSE dist/
+            (cd dist && 7z a ../feather-${{ github.ref_name }}-${{ matrix.name }}.zip .)
+            asset=feather-${{ github.ref_name }}-${{ matrix.name }}.zip
+          else
+            cp target/release/feather README.md LICENSE dist/
+            tar -C dist -czf feather-${{ github.ref_name }}-${{ matrix.name }}.tar.gz .
+            asset=feather-${{ github.ref_name }}-${{ matrix.name }}.tar.gz
+          fi
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: release-*
+          merge-multiple: true
+      - name: Checksums
+        run: cd assets && sha256sum * > SHA256SUMS.txt
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" assets/* \
+            --repo "${{ github.repository }}" \
+            --title "Feather ${{ github.ref_name }}" \
+            --prerelease \
+            --notes "First build of Feather, a lightweight native Discord client (bot accounts only).
+
+          **Not yet verified against live Discord.** It was developed and tested against a local mock of the Discord protocol. Windows and macOS builds are untested beyond CI. Binaries are unsigned, so Windows SmartScreen or macOS Gatekeeper may warn.
+
+          Run it, paste a bot token (see the README for setup) and report what breaks. Known limitations: docs/KNOWN_LIMITATIONS.md. Benchmarks: docs/BENCHMARKS.md."
