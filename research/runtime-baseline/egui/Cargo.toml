@@ -1,0 +1,12 @@
+[package]
+name = "rb-egui"
+version = "0.0.0"
+edition = "2021"
+[dependencies]
+eframe = { version = "0.33", default-features = false, features = ["glow", "x11", "default_fonts"] }
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

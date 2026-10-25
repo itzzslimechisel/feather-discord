@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = ["crates/feather-core", "crates/feather-app", "crates/feather-mock"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.85"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time", "net"] }
+log = { version = "0.4", features = ["std"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Fast-to-compile dev builds that are still usable for UI work.
+[profile.dev.package."*"]
+opt-level = 2

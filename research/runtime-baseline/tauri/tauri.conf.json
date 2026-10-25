@@ -1,0 +1,4 @@
+{"productName":"rb-tauri","version":"0.0.0","identifier":"dev.rb.tauri",
+ "build":{"frontendDist":"../page"},
+ "app":{"windows":[{"title":"rb","width":1000,"height":700}],"security":{"csp":null}},
+ "bundle":{"active":false,"icon":["icon.png"]}}
