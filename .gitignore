@@ -1,18 +1,19 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+# Rust build output
+/target/
+**/*.rs.bk
 
-# Other files and folders
-.settings/
+# Benchmark output and local research artefacts
+/bench/out/
+/research/runtime-baseline/electron/node_modules/
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# Local caches Feather may create when run from the repo
+*.corrupt-*
+*.db-wal
+*.db-shm
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# Editors and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
