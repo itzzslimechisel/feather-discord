@@ -3,9 +3,17 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create, e.g. v0.1.0 (created on the selected commit)"
+        required: true
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -35,12 +43,12 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             cp target/release/feather.exe dist/
             cp README.md LICENSE dist/
-            (cd dist && 7z a ../feather-${{ github.ref_name }}-${{ matrix.name }}.zip .)
-            asset=feather-${{ github.ref_name }}-${{ matrix.name }}.zip
+            (cd dist && 7z a ../feather-${{ env.TAG }}-${{ matrix.name }}.zip .)
+            asset=feather-${{ env.TAG }}-${{ matrix.name }}.zip
           else
             cp target/release/feather README.md LICENSE dist/
-            tar -C dist -czf feather-${{ github.ref_name }}-${{ matrix.name }}.tar.gz .
-            asset=feather-${{ github.ref_name }}-${{ matrix.name }}.tar.gz
+            tar -C dist -czf feather-${{ env.TAG }}-${{ matrix.name }}.tar.gz .
+            asset=feather-${{ env.TAG }}-${{ matrix.name }}.tar.gz
           fi
           echo "ASSET=$asset" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
@@ -64,9 +72,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" assets/* \
+          gh release create "${{ env.TAG }}" assets/* \
             --repo "${{ github.repository }}" \
-            --title "Feather ${{ github.ref_name }}" \
+            --target "${{ github.sha }}" \
+            --title "Feather ${{ env.TAG }}" \
             --prerelease \
             --notes "First build of Feather, a lightweight native Discord client (bot accounts only).
 
