@@ -96,3 +96,17 @@ def idle_cpu(root, seconds):
     c1, w1, t1 = cpu_ticks(pids), wakeups(pids), time.monotonic()
     dt = t1 - t0
     return 100.0 * (c1 - c0) / CLK / dt, (w1 - w0) / dt
+
+
+def io_bytes(pids):
+    """(read_bytes, write_bytes) that actually hit storage, summed over processes."""
+    r = w = 0
+    for p in pids:
+        try:
+            with open(f"/proc/{p}/io") as f:
+                for line in f:
+                    if line.startswith("read_bytes:"): r += int(line.split()[1])
+                    elif line.startswith("write_bytes:"): w += int(line.split()[1])
+        except OSError:
+            pass
+    return r, w

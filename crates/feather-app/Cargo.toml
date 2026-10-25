@@ -3,3 +3,17 @@ name = "feather-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Feather desktop client"
+default-run = "feather"
+
+[[bin]]
+name = "feather"
+path = "src/main.rs"
+
+[dependencies]
+feather-core = { path = "../feather-core" }
+eframe = { version = "0.33", default-features = false, features = ["accesskit", "default_fonts", "glow", "wayland", "x11"] }
+serde_json.workspace = true
+log.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "6"
