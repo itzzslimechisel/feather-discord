@@ -246,6 +246,8 @@ pub struct Settings {
     pub show_member_list: bool,
     pub image_previews: bool,
     pub confirm_links: bool,
+    /// Load a system CJK/symbol font (uses extra memory).
+    pub wide_fonts: bool,
     /// Messages kept on disk per channel.
     pub disk_messages_per_channel: u32,
     pub window_size: Option<(f32, f32)>,
@@ -264,6 +266,7 @@ impl Default for Settings {
             show_member_list: true,
             image_previews: true,
             confirm_links: true,
+            wide_fonts: false,
             disk_messages_per_channel: 2000,
             window_size: None,
             last_channel: None,

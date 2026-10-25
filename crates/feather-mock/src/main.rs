@@ -452,7 +452,7 @@ async fn cdn_img(State(s): S, Path((w, h, seed)): Path<(u32, u32, u8)>) -> Respo
     ([("content-type", "image/png")], data.as_ref().clone()).into_response()
 }
 
-async fn cdn_avatar(State(s): S, Path((_a, b, _c)): Path<(String, String, String)>) -> Response {
+async fn cdn_avatar(State(s): S, Path((_a, b)): Path<(String, String)>) -> Response {
     s.count("cdn avatar");
     let seed = b.bytes().fold(0u8, |a, x| a.wrapping_add(x));
     let data = png(&s, 64, 64, seed);
@@ -643,8 +643,8 @@ async fn main() {
         .route("/api/v10/users/@me/channels", post(open_dm))
         .route("/api/v10/guilds/{g}/members", get(members))
         .route("/cdn/img/{w}/{h}/{seed}", get(cdn_img))
-        .route("/cdn/avatars/{a}/{b}/{c}", get(cdn_avatar))
-        .route("/cdn/embed/avatars/{b}", get(|s: S, Path(b): Path<String>| async move { cdn_avatar(s, Path((String::new(), b, String::new()))).await }))
+        .route("/cdn/avatars/{a}/{b}", get(cdn_avatar))
+        .route("/cdn/embed/avatars/{b}", get(|s: S, Path(b): Path<String>| async move { cdn_avatar(s, Path((String::new(), b))).await }))
         .route("/control/{action}", post(control))
         .with_state(s);
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await.expect("bind");
