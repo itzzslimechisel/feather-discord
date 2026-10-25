@@ -472,11 +472,13 @@ async fn connection(
                         send!(json!({ "op": 1, "d": session.as_ref().and_then(|s| s.seq) }));
                     }
                     7 => {
+                        log::info!("gateway requested reconnect");
                         let _ = tx.send(WsMessage::Close(Some(CloseFrame { code: CloseCode::Library(4000), reason: "reconnect".into() }))).await;
                         return Exit::Reconnect { resume: session.is_some(), delay: Some(Duration::from_millis(50)) };
                     }
                     9 => {
                         let resumable = env.d.map(|d| d.get() == "true").unwrap_or(false);
+                        log::info!("gateway invalid session (resumable: {resumable})");
                         let _ = tx.send(WsMessage::Close(Some(CloseFrame { code: CloseCode::Library(4000), reason: "invalid session".into() }))).await;
                         let delay = Duration::from_millis(1000 + fastrand::u64(0..4000));
                         return Exit::Reconnect { resume: resumable && session.is_some(), delay: Some(delay) };
