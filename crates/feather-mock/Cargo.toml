@@ -3,3 +3,18 @@ name = "feather-mock"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Local Discord-protocol mock server used by Feather's tests and benchmarks"
+publish = false
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "ws", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+[dev-dependencies]
+feather-core = { path = "../feather-core" }
+tempfile = "3"
