@@ -116,6 +116,7 @@ python3 bench/run.py --all --check   # runs every scenario, fails if a budget is
 
 ## More documentation
 
+* [Handoff notes for the next maintainer](HANDOFF.md)
 * [Architecture and stack choice](docs/ARCHITECTURE.md)
 * [Discord compatibility and policy notes](docs/DISCORD_COMPATIBILITY.md)
 * [Benchmarks](docs/BENCHMARKS.md)
